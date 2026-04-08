@@ -1,0 +1,15 @@
+node_modules/
+bin/
+downloads/
+frames/
+logs/
+*.log
+.env
+.env.*
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Claude Code local settings
+.claude/

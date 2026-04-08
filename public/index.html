@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnapSave - Tải Video TikTok, Instagram, Facebook</title>
+  <meta name="description" content="Tải video từ TikTok, Instagram, Facebook miễn phí. Tách khung hình.">
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="application-name" content="SnapSave">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- iOS -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SnapSave">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Animated background -->
+  <div class="bg-animation">
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+    <div class="bg-orb bg-orb-4"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="container">
+      <a href="/" class="logo" id="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M16 2L4 8v16l12 6 12-6V8L16 2z" fill="url(#grad1)" opacity="0.9"/>
+            <path d="M12 13l4 3 8-6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 17l4 3 8-6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+            <defs>
+              <linearGradient id="grad1" x1="4" y1="2" x2="28" y2="30">
+                <stop offset="0%" stop-color="#6366f1"/>
+                <stop offset="100%" stop-color="#ec4899"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="logo-text">Snap<span class="logo-accent">Save</span></span>
+      </a>
+      <nav class="nav">
+        <button id="install-btn" class="install-btn" style="display:none" title="Cài đặt ứng dụng">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Cài đặt</span>
+        </button>
+        <span class="nav-badge">Free</span>
+        <span class="nav-badge nav-badge-glow">HD Quality</span>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="main">
+    <div class="container">
+      <section class="hero" id="hero-section">
+        <h1 class="hero-title">
+          Tải video yêu thích<br>
+          <span class="gradient-text">chỉ trong 1 click</span>
+        </h1>
+        <p class="hero-subtitle">
+          Hỗ trợ TikTok, Instagram & Facebook — Tải video, tách ảnh
+        </p>
+
+        <!-- Platform badges -->
+        <div class="platforms" id="platform-badges">
+          <div class="platform-badge platform-tiktok" data-platform="tiktok">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.88-2.88 2.89 2.89 0 012.88-2.88c.28 0 .54.04.8.1V9a6.33 6.33 0 00-.8-.05A6.34 6.34 0 003.15 15.3a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V9.37a8.16 8.16 0 004.77 1.53V7.45a4.81 4.81 0 01-1.01-.76z"/></svg>
+            <span>TikTok</span>
+          </div>
+          <div class="platform-badge platform-instagram" data-platform="instagram">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+            <span>Instagram</span>
+          </div>
+          <div class="platform-badge platform-facebook" data-platform="facebook">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            <span>Facebook</span>
+          </div>
+        </div>
+
+        <!-- URL Input -->
+        <div class="input-section" id="input-section">
+          <div class="input-wrapper">
+            <div class="input-glow"></div>
+            <div class="input-container">
+              <div class="input-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+              </div>
+              <input type="url" id="url-input" class="url-input" placeholder="Dán link video TikTok, Instagram hoặc Facebook..." autocomplete="off" spellcheck="false">
+              <button id="paste-btn" class="paste-btn" title="Dán từ clipboard">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              </button>
+              <button id="download-btn" class="download-btn">
+                <span class="btn-text">Tải xuống</span>
+                <div class="btn-loader" style="display:none"><div class="spinner"></div></div>
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <p class="input-hint">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm6.5-.25A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 100-2 1 1 0 000 2z"/></svg>
+            Mở video trên ứng dụng → Chia sẻ → Sao chép liên kết → Dán vào đây
+          </p>
+        </div>
+
+        <!-- Error -->
+        <div class="error-container" id="error-container" style="display:none">
+          <div class="error-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <span id="error-text"></span>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading-container" id="loading-container" style="display:none">
+          <div class="loading-card">
+            <div class="loading-pulse">
+              <div class="pulse-ring"></div><div class="pulse-ring"></div><div class="pulse-ring"></div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28" class="loading-icon">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </div>
+            <h3 class="loading-title" id="loading-title">Đang phân tích video...</h3>
+            <p class="loading-subtitle" id="loading-text">Vui lòng chờ trong giây lát</p>
+            <div class="loading-bar"><div class="loading-bar-fill" id="loading-bar-fill"></div></div>
+          </div>
+        </div>
+
+        <!-- Result Card -->
+        <div class="result-container" id="result-container" style="display:none">
+          <div class="result-card">
+            <button class="result-close" id="result-close" title="Đóng">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="result-content">
+              <div class="result-preview">
+                <img id="result-thumbnail" src="" alt="Video thumbnail" class="result-thumbnail">
+                <div class="result-duration" id="result-duration"></div>
+                <div class="result-platform-badge" id="result-platform"></div>
+              </div>
+              <div class="result-info">
+                <h3 class="result-title" id="result-title"></h3>
+                <div class="result-meta">
+                  <span class="result-author"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span id="result-uploader"></span></span>
+                  <span class="result-views"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="result-view-count"></span></span>
+                </div>
+                <div class="result-formats" id="result-formats"></div>
+
+                <!-- Action Buttons Row -->
+                <div class="action-buttons">
+                  <button class="action-btn action-btn-primary" id="download-action-btn">
+                    <div class="btn-shimmer"></div>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Tải video</span>
+                  </button>
+                  <button class="action-btn action-btn-frames" id="frames-action-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="9" y1="2" x2="9" y2="22"/><line x1="15" y1="2" x2="15" y2="22"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/></svg>
+                    <span>Tách ảnh</span>
+                  </button>
+                  <button class="action-btn action-btn-audio" id="audio-action-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    <span>Tách audio (MP3)</span>
+                  </button>
+                </div>
+
+                <!-- Download Progress -->
+                <div class="download-progress" id="download-progress" style="display:none">
+                  <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                  <span class="progress-text" id="progress-text">Đang tải...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Frames Gallery -->
+        <div class="frames-container" id="frames-container" style="display:none">
+          <div class="frames-card">
+            <div class="frames-header">
+              <h3>📸 Khung hình trích xuất</h3>
+              <button class="frames-close" id="frames-close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="frames-grid" id="frames-grid"></div>
+            <div class="frames-actions">
+              <button class="action-btn action-btn-primary" id="frames-download-all">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Tải tất cả (ZIP)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Features -->
+      <section class="features" id="features-section">
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-speed">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <h3>Siêu nhanh</h3>
+            <p>Tốc độ tải về cực nhanh nhờ máy chủ tối ưu</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon feature-icon-frames">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="9" y1="2" x2="9" y2="22"/><line x1="15" y1="2" x2="15" y2="22"/></svg>
+            </div>
+            <h3>Tách khung ảnh</h3>
+            <p>Trích xuất từng khung hình từ video thành ảnh JPG</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>© 2026 SnapSave — Tải video, tách ảnh</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => {
+            console.log('[PWA] SW registered:', reg.scope);
+            // Auto-reload when a new SW takes control (new version deployed)
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              if (refreshing) return;
+              refreshing = true;
+              window.location.reload();
+            });
+          })
+          .catch(err => console.warn('[PWA] SW failed:', err));
+      });
+    }
+
+    // PWA Install Prompt
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('install-btn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (installBtn) installBtn.style.display = 'inline-flex';
+    });
+
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log('[PWA] Install:', outcome);
+        deferredPrompt = null;
+        installBtn.style.display = 'none';
+      });
+    }
+
+    window.addEventListener('appinstalled', () => {
+      console.log('[PWA] Installed');
+      if (installBtn) installBtn.style.display = 'none';
+      deferredPrompt = null;
+    });
+
+    // Hide install button if already running as installed PWA
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+      if (installBtn) installBtn.style.display = 'none';
+    }
+  </script>
+</body>
+</html>
