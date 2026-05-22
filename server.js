@@ -12,6 +12,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const archiver = require('archiver');
 const multer = require('multer');
+const axios = require('axios');
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 8097;
@@ -50,6 +51,29 @@ const FFMPEG = process.env.FFMPEG_PATH || path.join(__dirname, 'bin', 'ffmpeg');
 const FFPROBE = process.env.FFPROBE_PATH || path.join(__dirname, 'bin', 'ffprobe');
 const FFMPEG_DIR = process.env.FFMPEG_DIR || path.dirname(FFMPEG);
 
+// Cobalt.tools API (used by F1 Download). URL + optional API key are env-overridable.
+const COBALT_API_URL = process.env.COBALT_API_URL || 'https://cobalt-api.fly.dev/';
+const COBALT_API_KEY = process.env.COBALT_API_KEY || '';
+
+async function cobaltFetch(videoUrl) {
+  const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+  if (COBALT_API_KEY) headers['Authorization'] = `Api-Key ${COBALT_API_KEY}`;
+  const resp = await axios.post(COBALT_API_URL, { url: videoUrl }, {
+    headers,
+    timeout: 30000,
+    validateStatus: () => true,
+  });
+  return { status: resp.status, data: resp.data };
+}
+
+function cobaltErrorMessage(data) {
+  const code = data?.error?.code || 'unknown';
+  if (code.includes('auth')) return `Cobalt yêu cầu xác thực (${code}). Set COBALT_API_KEY hoặc đổi COBALT_API_URL.`;
+  if (code.includes('fetch')) return `Cobalt không tải được video (${code}). Có thể link không hợp lệ hoặc bị chặn.`;
+  if (code.includes('content')) return `Cobalt không tìm thấy nội dung (${code}).`;
+  return `Cobalt lỗi: ${code}`;
+}
+
 // ============================================================
 // Utility Functions
 // ============================================================
@@ -83,7 +107,7 @@ function sanitizeFilename(name) {
 }
 
 // ============================================================
-// API: Get Video Info
+// API: Get Video Info  (cobalt.tools)
 // ============================================================
 app.post('/api/info', async (req, res) => {
   let { url } = req.body;
@@ -95,113 +119,127 @@ app.post('/api/info', async (req, res) => {
   }
 
   url = normalizeUrl(url);
-  console.log(`[INFO] Fetching: ${url}`);
+  console.log(`[INFO] (cobalt) ${url}`);
 
-  const args = [
-    '--no-download', '--dump-json', '--no-warnings', '--no-check-certificates',
-    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  ];
-  if (platform === 'instagram') args.push('--extractor-args', 'instagram:api_only=false');
-  args.push(url);
+  try {
+    const { status, data } = await cobaltFetch(url);
 
-  execFile(YT_DLP, args, { timeout: 60000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
-    if (error) {
-      console.error('yt-dlp error:', stderr || error.message);
-      let errMsg = 'Không thể lấy thông tin video.';
-      if (stderr) {
-        if (stderr.includes('Private') || stderr.includes('login')) errMsg = 'Video riêng tư hoặc yêu cầu đăng nhập.';
-        else if (stderr.includes('not available')) errMsg = 'Video không tồn tại hoặc đã bị xóa.';
-        else if (stderr.includes('Unsupported URL')) errMsg = 'URL không được hỗ trợ.';
-      }
-      return res.status(500).json({ error: errMsg });
+    if (data?.status === 'error') {
+      console.error('[INFO] cobalt error:', JSON.stringify(data.error));
+      return res.status(status >= 400 ? status : 502).json({ error: cobaltErrorMessage(data) });
     }
 
-    try {
-      const info = JSON.parse(stdout.trim().split('\n')[0]);
-      const formats = (info.formats || [])
-        .filter(f => f.vcodec !== 'none' || f.acodec !== 'none')
-        .map(f => ({
-          format_id: f.format_id, ext: f.ext,
-          resolution: f.resolution || (f.width && f.height ? `${f.width}x${f.height}` : f.format_note || 'unknown'),
-          filesize: f.filesize || f.filesize_approx || null,
-          quality: f.quality || f.height || 0,
-          has_video: f.vcodec !== 'none', has_audio: f.acodec !== 'none',
-          format_note: f.format_note || '', width: f.width || 0, height: f.height || 0,
-        }));
+    let tunnelUrl = null;
+    let title = 'Untitled';
+    let isPhoto = false;
 
-      const bestFormats = formats.filter(f => f.has_video && f.has_audio);
-      const isPhotoSlideshow = formats.length > 0 && formats.every(f => !f.has_video);
-
-      let thumbnail = info.thumbnail || '';
-      if (!thumbnail && info.thumbnails && info.thumbnails.length > 0) {
-        thumbnail = info.thumbnails[info.thumbnails.length - 1].url || '';
-      }
-
-      res.json({
-        platform,
-        title: info.title || info.fulltitle || 'Untitled',
-        description: (info.description || '').substring(0, 200),
-        thumbnail, duration: info.duration || 0,
-        uploader: info.channel || info.uploader || 'Unknown',
-        view_count: info.view_count || 0, like_count: info.like_count || 0,
-        formats: bestFormats.length > 0 ? bestFormats : formats.slice(0, 10),
-        webpage_url: info.webpage_url || url,
-        is_photo: isPhotoSlideshow,
-      });
-    } catch (e) {
-      res.status(500).json({ error: 'Không thể phân tích thông tin video.' });
+    if (data?.status === 'tunnel' || data?.status === 'redirect') {
+      tunnelUrl = data.url;
+      title = data.filename || title;
+    } else if (data?.status === 'picker' && Array.isArray(data.picker) && data.picker.length > 0) {
+      tunnelUrl = data.picker[0].url;
+      title = data.picker[0].filename || title;
+      isPhoto = data.picker.every(p => p.type === 'photo');
+    } else {
+      return res.status(502).json({ error: `Cobalt response không nhận diện được (status=${data?.status}).` });
     }
-  });
+
+    res.json({
+      platform,
+      title,
+      description: '',
+      thumbnail: data?.thumb || '',
+      duration: 0,
+      uploader: 'Unknown',
+      view_count: 0,
+      like_count: 0,
+      formats: [{
+        format_id: 'cobalt',
+        ext: 'mp4',
+        resolution: 'auto',
+        filesize: null,
+        quality: 0,
+        has_video: !isPhoto,
+        has_audio: true,
+        format_note: 'Cobalt',
+        width: 0,
+        height: 0,
+      }],
+      webpage_url: url,
+      is_photo: isPhoto,
+      _cobalt_url: tunnelUrl,
+    });
+  } catch (e) {
+    console.error('[INFO] cobalt request failed:', e.message);
+    return res.status(502).json({ error: `Không gọi được Cobalt API: ${e.message}` });
+  }
 });
 
 // ============================================================
-// API: Download Video
+// API: Download Video  (cobalt.tools)
 // ============================================================
 app.post('/api/download', async (req, res) => {
-  let { url, format_id, title } = req.body;
+  let { url, title } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const platform = detectPlatform(url);
   if (platform === 'unknown') return res.status(400).json({ error: 'Nền tảng không được hỗ trợ.' });
 
   url = normalizeUrl(url);
-  const fileId = crypto.randomBytes(4).toString('hex');
-  const safeName = sanitizeFilename(title);
-  const outputTemplate = path.join(DOWNLOADS_DIR, `${safeName}_${fileId}.%(ext)s`);
-  console.log(`[DOWNLOAD] ${url} (format: ${format_id || 'best'})`);
+  console.log(`[DOWNLOAD] (cobalt) ${url}`);
 
-  const args = [
-    '-o', outputTemplate, '--no-warnings', '--no-check-certificates',
-    '--ffmpeg-location', FFMPEG_DIR,
-    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  ];
-
-  if (format_id) {
-    args.push('-f', format_id);
-    if (format_id !== 'audio') args.push('--merge-output-format', 'mp4');
-  } else {
-    args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best');
-    args.push('--merge-output-format', 'mp4');
-  }
-  args.push(url);
-
-  execFile(YT_DLP, args, { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
-    if (error) {
-      console.error('Download error:', stderr || error.message);
-      return res.status(500).json({ error: 'Tải video thất bại.' });
+  let cobaltUrl = null;
+  let cobaltFilename = null;
+  try {
+    const { status, data } = await cobaltFetch(url);
+    if (data?.status === 'error') {
+      console.error('[DOWNLOAD] cobalt error:', JSON.stringify(data.error));
+      return res.status(status >= 400 ? status : 502).json({ error: cobaltErrorMessage(data) });
     }
+    if (data?.status === 'tunnel' || data?.status === 'redirect') {
+      cobaltUrl = data.url;
+      cobaltFilename = data.filename || null;
+    } else if (data?.status === 'picker' && Array.isArray(data.picker) && data.picker.length > 0) {
+      cobaltUrl = data.picker[0].url;
+      cobaltFilename = data.picker[0].filename || null;
+    } else {
+      return res.status(502).json({ error: `Cobalt response không nhận diện được (status=${data?.status}).` });
+    }
+  } catch (e) {
+    console.error('[DOWNLOAD] cobalt request failed:', e.message);
+    return res.status(502).json({ error: `Không gọi được Cobalt API: ${e.message}` });
+  }
 
-    const files = fs.readdirSync(DOWNLOADS_DIR).filter(f => f.includes(fileId));
-    if (files.length === 0) return res.status(500).json({ error: 'Không tìm thấy file.' });
+  // Stream the file from cobalt's tunnel URL into DOWNLOADS_DIR
+  const fileId = crypto.randomBytes(4).toString('hex');
+  const baseName = sanitizeFilename(title || (cobaltFilename ? path.parse(cobaltFilename).name : 'video'));
+  const ext = cobaltFilename ? (path.extname(cobaltFilename).replace('.', '') || 'mp4') : 'mp4';
+  const filename = `${baseName}_${fileId}.${ext}`;
+  const outputPath = path.join(DOWNLOADS_DIR, filename);
 
-    const filename = files[0];
-    const stat = fs.statSync(path.join(DOWNLOADS_DIR, filename));
-    console.log(`[DOWNLOAD] OK: ${filename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
-
-    res.json({
-      success: true, filename, filesize: stat.size,
-      download_url: `/downloads/${encodeURIComponent(filename)}`,
+  try {
+    const dl = await axios.get(cobaltUrl, { responseType: 'stream', timeout: 180000 });
+    await new Promise((resolve, reject) => {
+      const writer = fs.createWriteStream(outputPath);
+      dl.data.pipe(writer);
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+      dl.data.on('error', reject);
     });
+  } catch (e) {
+    console.error('[DOWNLOAD] stream failed:', e.message);
+    try { fs.unlinkSync(outputPath); } catch {}
+    return res.status(502).json({ error: `Tải file từ Cobalt tunnel thất bại: ${e.message}` });
+  }
+
+  const stat = fs.statSync(outputPath);
+  console.log(`[DOWNLOAD] OK: ${filename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
+
+  res.json({
+    success: true,
+    filename,
+    filesize: stat.size,
+    download_url: `/downloads/${encodeURIComponent(filename)}`,
   });
 });
 

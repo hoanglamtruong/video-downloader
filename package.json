@@ -12,6 +12,7 @@
   "description": "Zdown — Video downloader (TikTok / Instagram / Facebook): download, audio, frames.",
   "dependencies": {
     "archiver": "^7.0.1",
+    "axios": "^1.16.1",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
