@@ -473,4 +473,120 @@
     observer.observe(card);
   });
 
+  // ============================
+  // Upload: Audio from file
+  // ============================
+  const audioFileInput = document.getElementById('audio-file-input');
+  const audioFormatSelect = document.getElementById('audio-format-select');
+  const audioFileBtn = document.getElementById('audio-file-btn');
+  const audioFileStatus = document.getElementById('audio-file-status');
+
+  audioFileBtn?.addEventListener('click', async () => {
+    const file = audioFileInput?.files?.[0];
+    if (!file) { audioFileStatus.textContent = '⚠️ Vui lòng chọn file video.'; return; }
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('format', audioFormatSelect.value);
+
+    audioFileBtn.disabled = true;
+    audioFileStatus.textContent = '🎵 Đang xử lý...';
+
+    try {
+      const resp = await fetch('/api/audio-from-file', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Tách audio thất bại.');
+
+      audioFileStatus.innerHTML = `✅ ${data.filename} (${formatFileSize(data.size)})`;
+      const a = document.createElement('a');
+      a.href = data.download_url;
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      audioFileStatus.textContent = '❌ ' + err.message;
+    } finally {
+      audioFileBtn.disabled = false;
+    }
+  });
+
+  // ============================
+  // Upload: Frames from file
+  // ============================
+  const framesFileInput = document.getElementById('frames-file-input');
+  const framesCountInput = document.getElementById('frames-count-input');
+  const framesFileBtn = document.getElementById('frames-file-btn');
+  const framesFileStatus = document.getElementById('frames-file-status');
+  const uploadFramesContainer = document.getElementById('upload-frames-container');
+  const uploadFramesGrid = document.getElementById('upload-frames-grid');
+  const uploadFramesTotal = document.getElementById('upload-frames-total');
+  const uploadFramesZipBtn = document.getElementById('upload-frames-zip-btn');
+  let uploadFramesZipUrl = null;
+
+  framesFileBtn?.addEventListener('click', async () => {
+    const file = framesFileInput?.files?.[0];
+    if (!file) { framesFileStatus.textContent = '⚠️ Vui lòng chọn file video.'; return; }
+    const n = parseInt(framesCountInput.value, 10);
+    if (!Number.isFinite(n) || n < 1) { framesFileStatus.textContent = '⚠️ Số frame không hợp lệ.'; return; }
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('n_frames', String(n));
+
+    framesFileBtn.disabled = true;
+    framesFileStatus.textContent = `🖼️ Đang trích xuất ${n} frame...`;
+    uploadFramesContainer.style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/frames-from-file', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Trích xuất khung hình thất bại.');
+
+      framesFileStatus.textContent = `✅ Trích xuất ${data.total} frame xong.`;
+      uploadFramesTotal.textContent = data.total;
+      uploadFramesZipUrl = data.zip_url;
+      uploadFramesGrid.innerHTML = '';
+
+      data.frames.forEach((frame, i) => {
+        const item = document.createElement('div');
+        item.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;background:rgba(0,0,0,0.3);aspect-ratio:16/9';
+        item.innerHTML = `
+          <img src="${frame.url}" alt="Frame ${i+1}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">
+          <span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.7);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px">#${i+1}</span>
+          <button title="Tải ảnh này" style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,0.7);color:#fff;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+        `;
+        item.querySelector('button').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const a = document.createElement('a');
+          a.href = frame.url;
+          a.download = frame.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        });
+        uploadFramesGrid.appendChild(item);
+      });
+
+      uploadFramesContainer.style.display = 'block';
+      uploadFramesContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (err) {
+      framesFileStatus.textContent = '❌ ' + err.message;
+    } finally {
+      framesFileBtn.disabled = false;
+    }
+  });
+
+  uploadFramesZipBtn?.addEventListener('click', () => {
+    if (!uploadFramesZipUrl) return;
+    const a = document.createElement('a');
+    a.href = uploadFramesZipUrl;
+    a.download = 'frames.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+
 })();

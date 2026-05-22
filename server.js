@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const archiver = require('archiver');
+const multer = require('multer');
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 8097;
@@ -24,8 +25,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Directories (env-overridable, resolved relative to project root)
 const DOWNLOADS_DIR = path.resolve(__dirname, process.env.DOWNLOAD_DIR || './downloads');
 const FRAMES_DIR = path.resolve(__dirname, process.env.FRAMES_DIR || './frames');
-[DOWNLOADS_DIR, FRAMES_DIR].forEach(d => {
+const UPLOADS_DIR = path.resolve(__dirname, process.env.UPLOADS_DIR || './uploads');
+[DOWNLOADS_DIR, FRAMES_DIR, UPLOADS_DIR].forEach(d => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+});
+
+// Multer storage for client-uploaded files (videos for audio/frames extraction)
+const uploadStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const id = crypto.randomBytes(4).toString('hex');
+    const ext = path.extname(file.originalname || '').toLowerCase() || '.mp4';
+    cb(null, `upload_${id}${ext}`);
+  },
+});
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
 });
 
 // Tool paths (env-overridable; fall back to bundled ./bin/ for legacy deploy)
@@ -314,6 +330,134 @@ app.post('/api/frames', async (req, res) => {
         frame_count: frameFiles.length,
         frames: frameFiles,
         video_file: videoFiles[0],
+      });
+    });
+  });
+});
+
+// ============================================================
+// API: Extract Audio from Uploaded File
+// ============================================================
+app.post('/api/audio-from-file', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Thiếu file upload.' });
+
+  const inputPath = req.file.path;
+  const rawFormat = (req.body.format || 'mp3').toLowerCase();
+  if (rawFormat !== 'mp3' && rawFormat !== 'wav') {
+    fs.unlink(req.file.path, () => {});
+    return res.status(400).json({ error: 'Format không hợp lệ. Chỉ hỗ trợ: mp3, wav.' });
+  }
+  const format = rawFormat;
+  const fileId = crypto.randomBytes(4).toString('hex');
+  const baseName = sanitizeFilename(path.basename(req.file.originalname || 'audio', path.extname(req.file.originalname || '')));
+  const outFilename = `${baseName}_${fileId}.${format}`;
+  const outputPath = path.join(DOWNLOADS_DIR, outFilename);
+
+  console.log(`[AUDIO-FILE] ${req.file.originalname} → ${format}`);
+
+  const ffArgs = ['-y', '-i', inputPath, '-vn'];
+  if (format === 'mp3') {
+    ffArgs.push('-c:a', 'libmp3lame', '-q:a', '2');
+  } else {
+    ffArgs.push('-c:a', 'pcm_s16le');
+  }
+  ffArgs.push(outputPath);
+
+  execFile(FFMPEG, ffArgs, { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (err, _out, stderr) => {
+    fs.unlink(inputPath, () => {});
+    if (err) {
+      console.error('Audio-file ffmpeg error:', stderr || err.message);
+      return res.status(500).json({ error: 'Tách audio từ file thất bại.' });
+    }
+    if (!fs.existsSync(outputPath)) {
+      return res.status(500).json({ error: 'Không tạo được file audio.' });
+    }
+    const stat = fs.statSync(outputPath);
+    console.log(`[AUDIO-FILE] OK: ${outFilename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
+    res.json({
+      success: true,
+      filename: outFilename,
+      size: stat.size,
+      download_url: `/downloads/${encodeURIComponent(outFilename)}`,
+    });
+  });
+});
+
+// ============================================================
+// API: Extract Frames from Uploaded File
+// ============================================================
+app.post('/api/frames-from-file', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Thiếu file upload.' });
+
+  const inputPath = req.file.path;
+  const rawN = req.body.n_frames;
+  const nFrames = parseInt(rawN, 10);
+  if (rawN === undefined || rawN === '' || !Number.isFinite(nFrames) || nFrames < 1) {
+    fs.unlink(inputPath, () => {});
+    return res.status(400).json({ error: 'n_frames phải là số nguyên >= 1.' });
+  }
+  if (nFrames > 200) {
+    fs.unlink(inputPath, () => {});
+    return res.status(400).json({ error: 'n_frames tối đa là 200.' });
+  }
+
+  const sessionId = crypto.randomBytes(4).toString('hex');
+  const frameDir = path.join(FRAMES_DIR, sessionId);
+  fs.mkdirSync(frameDir, { recursive: true });
+
+  console.log(`[FRAMES-FILE] ${req.file.originalname} → ${nFrames} frames`);
+
+  // Step 1: probe duration
+  const probeArgs = ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', inputPath];
+  execFile(FFPROBE, probeArgs, { timeout: 30000 }, (probeErr, probeOut) => {
+    if (probeErr) {
+      fs.unlink(inputPath, () => {});
+      console.error('ffprobe error:', probeErr.message);
+      return res.status(500).json({ error: 'Không đọc được thời lượng video.' });
+    }
+    const duration = parseFloat(String(probeOut).trim());
+    if (!Number.isFinite(duration) || duration <= 0) {
+      fs.unlink(inputPath, () => {});
+      return res.status(500).json({ error: 'Video không hợp lệ.' });
+    }
+
+    // Step 2: compute fps so we get ~nFrames evenly-spaced frames
+    const fps = nFrames / duration;
+    const frameOutput = path.join(frameDir, 'frame_%04d.jpg');
+    const ffmpegArgs = [
+      '-y', '-i', inputPath,
+      '-vf', `fps=${fps.toFixed(6)}`,
+      '-frames:v', String(nFrames),
+      '-q:v', '2',
+      frameOutput,
+    ];
+
+    execFile(FFMPEG, ffmpegArgs, { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (ffErr, _ffOut, ffStderr) => {
+      fs.unlink(inputPath, () => {});
+      if (ffErr) {
+        console.error('FFmpeg frames-file error:', ffStderr || ffErr.message);
+        return res.status(500).json({ error: 'Trích xuất khung hình thất bại.' });
+      }
+
+      const frameFiles = fs.readdirSync(frameDir)
+        .filter(f => /\.jpg$/i.test(f))
+        .sort()
+        .map(f => ({
+          filename: f,
+          url: `/frames/${sessionId}/${f}`,
+        }));
+
+      if (frameFiles.length === 0) {
+        return res.status(500).json({ error: 'Không có khung hình nào được tạo.' });
+      }
+
+      console.log(`[FRAMES-FILE] OK: ${frameFiles.length} frames (session ${sessionId})`);
+      res.json({
+        success: true,
+        session_id: sessionId,
+        total: frameFiles.length,
+        frames: frameFiles,
+        zip_url: `/api/frames-zip/${sessionId}`,
       });
     });
   });
