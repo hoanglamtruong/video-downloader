@@ -1,0 +1,17 @@
+services:
+  zdown:
+    build: .
+    container_name: zdown
+    ports:
+      - "8097:8097"
+    env_file: .env
+    volumes:
+      - ./downloads:/app/downloads
+      - ./frames:/app/frames
+    restart: unless-stopped
+    networks:
+      - homelab-net
+
+networks:
+  homelab-net:
+    external: true

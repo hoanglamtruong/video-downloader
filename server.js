@@ -1,3 +1,9 @@
+// ============================================================
+// Zdown — Video Downloader (TikTok / Instagram / Facebook)
+// Flows: Download · Audio · Frames
+// ============================================================
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { execFile, exec } = require('child_process');
@@ -7,24 +13,26 @@ const crypto = require('crypto');
 const archiver = require('archiver');
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT, 10) || 8097;
+const CLEANUP_INTERVAL_MS = parseInt(process.env.CLEANUP_INTERVAL_MS, 10) || 10 * 60 * 1000;
+const MAX_FILE_AGE_MS = parseInt(process.env.MAX_FILE_AGE_MS, 10) || 60 * 60 * 1000;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Directories
-const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
-const FRAMES_DIR = path.join(__dirname, 'frames');
+// Directories (env-overridable, resolved relative to project root)
+const DOWNLOADS_DIR = path.resolve(__dirname, process.env.DOWNLOAD_DIR || './downloads');
+const FRAMES_DIR = path.resolve(__dirname, process.env.FRAMES_DIR || './frames');
 [DOWNLOADS_DIR, FRAMES_DIR].forEach(d => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
 });
 
-// Tool paths
-const YT_DLP = path.join(__dirname, 'bin', 'yt-dlp');
-const FFMPEG = path.join(__dirname, 'bin', 'ffmpeg');
-const FFPROBE = path.join(__dirname, 'bin', 'ffprobe');
-const FFMPEG_DIR = path.join(__dirname, 'bin');
+// Tool paths (env-overridable; fall back to bundled ./bin/ for legacy deploy)
+const YT_DLP = process.env.YT_DLP_PATH || path.join(__dirname, 'bin', 'yt-dlp');
+const FFMPEG = process.env.FFMPEG_PATH || path.join(__dirname, 'bin', 'ffmpeg');
+const FFPROBE = process.env.FFPROBE_PATH || path.join(__dirname, 'bin', 'ffprobe');
+const FFMPEG_DIR = process.env.FFMPEG_DIR || path.dirname(FFMPEG);
 
 // ============================================================
 // Utility Functions
@@ -371,11 +379,11 @@ setInterval(() => {
         const itemPath = path.join(dir, item);
         const stat = fs.statSync(itemPath);
         if (stat.isDirectory()) {
-          if (now - stat.mtimeMs > 60 * 60 * 1000) {
+          if (now - stat.mtimeMs > MAX_FILE_AGE_MS) {
             fs.rmSync(itemPath, { recursive: true });
             console.log('[CLEANUP]', item);
           }
-        } else if (now - stat.mtimeMs > 60 * 60 * 1000) {
+        } else if (now - stat.mtimeMs > MAX_FILE_AGE_MS) {
           fs.unlinkSync(itemPath);
           console.log('[CLEANUP]', item);
         }
@@ -384,8 +392,8 @@ setInterval(() => {
   };
   cleanDir(DOWNLOADS_DIR);
   cleanDir(FRAMES_DIR);
-}, 10 * 60 * 1000);
+}, CLEANUP_INTERVAL_MS);
 
 app.listen(PORT, () => {
-  console.log(`🚀 Video Downloader running at http://localhost:${PORT}`);
+  console.log(`🚀 Zdown running at http://localhost:${PORT}`);
 });

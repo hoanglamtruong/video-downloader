@@ -1,5 +1,5 @@
 // ============================
-// SnapSave - Video Downloader App
+// Zdown - Video Downloader App
 // ============================
 (function () {
   'use strict';

@@ -1,34 +1,40 @@
 /* ============================
-   CSS Custom Properties & Reset
+   Zdown — Brand Tokens
+   Primary #023047 (Navy) · Accent #FFB703 (Yellow) · Text #FFFFFF
    ============================ */
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-card: rgba(20, 20, 32, 0.7);
-  --bg-card-hover: rgba(30, 30, 48, 0.8);
-  --bg-input: rgba(20, 20, 35, 0.9);
+  /* Brand */
+  --brand-primary: #023047;
+  --brand-accent: #FFB703;
+  --brand-text: #FFFFFF;
 
-  --text-primary: #f0f0f5;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  --bg-primary: #021824;
+  --bg-secondary: #02263a;
+  --bg-card: rgba(2, 48, 71, 0.72);
+  --bg-card-hover: rgba(2, 60, 90, 0.82);
+  --bg-input: rgba(2, 38, 58, 0.9);
 
-  --accent-primary: #6366f1;
-  --accent-secondary: #818cf8;
-  --accent-pink: #ec4899;
-  --accent-purple: #a855f7;
-  --accent-cyan: #06b6d4;
+  --text-primary: #FFFFFF;
+  --text-secondary: #c9d6df;
+  --text-muted: #8aa0ad;
 
-  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
-  --gradient-secondary: linear-gradient(135deg, #818cf8 0%, #a855f7 50%, #ec4899 100%);
-  --gradient-glow: linear-gradient(135deg, rgba(99,102,241,0.4) 0%, rgba(236,72,153,0.4) 100%);
+  --accent-primary: #FFB703;
+  --accent-secondary: #ffd166;
+  --accent-pink: #FFB703;
+  --accent-purple: #023047;
+  --accent-cyan: #219ebc;
 
-  --border-color: rgba(255,255,255,0.06);
-  --border-glow: rgba(99,102,241,0.3);
+  --gradient-primary: linear-gradient(135deg, #023047 0%, #FFB703 100%);
+  --gradient-secondary: linear-gradient(135deg, #023047 0%, #219ebc 50%, #FFB703 100%);
+  --gradient-glow: linear-gradient(135deg, rgba(2,48,71,0.5) 0%, rgba(255,183,3,0.4) 100%);
+
+  --border-color: rgba(255,255,255,0.08);
+  --border-glow: rgba(255,183,3,0.35);
 
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
   --shadow-md: 0 8px 32px rgba(0,0,0,0.4);
   --shadow-lg: 0 16px 64px rgba(0,0,0,0.5);
-  --shadow-glow: 0 0 40px rgba(99,102,241,0.15);
+  --shadow-glow: 0 0 40px rgba(255,183,3,0.18);
 
   --radius-sm: 8px;
   --radius-md: 12px;

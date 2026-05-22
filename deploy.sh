@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================
-# SnapSave - Auto Deploy Script
+# Zdown - Auto Deploy Script
 # =============================================================
 # Cach dung:
 #   Lan dau:  ./deploy.sh --setup
@@ -12,8 +12,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.deploy.env"
-REMOTE_DIR="/opt/snapsave"
-APP_NAME="snapsave"
+REMOTE_DIR="/opt/zdown"
+APP_NAME="zdown"
 
 # Colors
 RED='\033[0;31m'
@@ -49,7 +49,7 @@ EOF
 
 prompt_config() {
   echo ""
-  echo -e "${CYAN}=== SnapSave Deploy Config ===${NC}"
+  echo -e "${CYAN}=== Zdown Deploy Config ===${NC}"
   echo ""
 
   read -p "SSH User (default: root): " SERVER_USER
@@ -125,7 +125,7 @@ setup_server() {
     fi
 
     # --- App directory ---
-    mkdir -p /opt/snapsave/{logs,downloads,frames,bin}
+    mkdir -p /opt/zdown/{logs,downloads,frames,bin}
 
     # --- PM2 startup ---
     pm2 startup systemd -u root --hp /root 2>/dev/null | tail -1 | bash 2>/dev/null || true
@@ -145,13 +145,13 @@ setup_nginx() {
   local nginx_conf="$SCRIPT_DIR/nginx.conf"
   if [[ -n "$DOMAIN" ]]; then
     sed "s/server_name _;/server_name ${DOMAIN};/" "$nginx_conf" | \
-      SSH_CMD "cat > /etc/nginx/sites-available/snapsave"
+      SSH_CMD "cat > /etc/nginx/sites-available/zdown"
   else
-    SSH_CMD "cat > /etc/nginx/sites-available/snapsave" < "$nginx_conf"
+    SSH_CMD "cat > /etc/nginx/sites-available/zdown" < "$nginx_conf"
   fi
 
   SSH_CMD bash << 'NGINX_EOF'
-    ln -sf /etc/nginx/sites-available/snapsave /etc/nginx/sites-enabled/snapsave
+    ln -sf /etc/nginx/sites-available/zdown /etc/nginx/sites-enabled/zdown
     rm -f /etc/nginx/sites-enabled/default
     nginx -t && systemctl reload nginx
     echo "[OK] Nginx configured"
@@ -249,7 +249,7 @@ case "${1:-}" in
     ;;
 
   --help|-h)
-    echo "SnapSave Deploy Script"
+    echo "Zdown Deploy Script"
     echo ""
     echo "Usage:"
     echo "  ./deploy.sh --setup     First-time setup + deploy"

@@ -1,16 +1,16 @@
 #!/bin/bash
 # =============================================================
-# SnapSave - Server Setup Script (chạy 1 lần trên server)
+# Zdown - Server Setup Script (chạy 1 lần trên server)
 # Dùng: sudo bash setup-server.sh
 # =============================================================
 
 set -e
 
-APP_DIR="/opt/snapsave"
-APP_NAME="snapsave"
+APP_DIR="/opt/zdown"
+APP_NAME="zdown"
 APP_USER="www-data"
 
-echo "🔧 Setting up SnapSave server..."
+echo "🔧 Setting up Zdown server..."
 
 # --- 1. Cài Node.js (nếu chưa có) ---
 if ! command -v node &>/dev/null; then
@@ -43,8 +43,8 @@ mkdir -p "$APP_DIR"/{logs,downloads,frames}
 
 # --- 5. Cấu hình Nginx ---
 echo "⚙️  Configuring Nginx..."
-cp "$APP_DIR/nginx.conf" /etc/nginx/sites-available/snapsave
-ln -sf /etc/nginx/sites-available/snapsave /etc/nginx/sites-enabled/snapsave
+cp "$APP_DIR/nginx.conf" /etc/nginx/sites-available/zdown
+ln -sf /etc/nginx/sites-available/zdown /etc/nginx/sites-enabled/zdown
 rm -f /etc/nginx/sites-enabled/default  # Bỏ default site
 
 nginx -t && systemctl reload nginx

@@ -1,5 +1,5 @@
-// SnapSave Service Worker
-const CACHE_VERSION = 'snapsave-v3';
+// Zdown Service Worker
+const CACHE_VERSION = 'zdown-v1';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 

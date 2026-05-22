@@ -1,13 +1,13 @@
 {
-  "name": "SnapSave - Video Downloader",
-  "short_name": "SnapSave",
-  "description": "Tải video TikTok, Instagram, Facebook miễn phí. Tách khung hình.",
+  "name": "Zdown - Video Downloader",
+  "short_name": "Zdown",
+  "description": "Tải video TikTok, Instagram, Facebook miễn phí. Tách audio MP3 và khung hình.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f0f1e",
-  "theme_color": "#6366f1",
+  "background_color": "#023047",
+  "theme_color": "#023047",
   "lang": "vi",
   "categories": ["utilities", "productivity", "multimedia"],
   "icons": [
