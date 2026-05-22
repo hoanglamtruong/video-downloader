@@ -246,17 +246,23 @@
       if (!resp.ok) throw new Error(data.error || 'Tải video thất bại.');
 
       progressFill.style.width = '100%';
-      progressText.textContent = 'Hoàn tất! Đang tải xuống...';
+      progressText.textContent = 'Hoàn tất! Đang mở trang tải...';
 
       setTimeout(() => {
-        const a = document.createElement('a');
-        a.href = data.download_url;
-        a.download = data.filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        // Prefer cobalt redirect_url; fall back to legacy local download_url
+        const target = data.redirect_url || data.download_url;
+        if (data.redirect_url) {
+          window.open(data.redirect_url, '_blank', 'noopener');
+        } else if (data.download_url) {
+          const a = document.createElement('a');
+          a.href = data.download_url;
+          a.download = data.filename || 'video';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
         setTimeout(() => {
-          progressText.textContent = '✅ Tải xuống thành công!';
+          progressText.textContent = target ? '✅ Đã mở link tải!' : '⚠️ Không có URL tải.';
           downloadActionBtn.disabled = false;
           framesActionBtn.disabled = currentVideoInfo?.is_photo || false;
           audioActionBtn.disabled = false;

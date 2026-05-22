@@ -176,7 +176,7 @@ app.post('/api/info', async (req, res) => {
 });
 
 // ============================================================
-// API: Download Video  (cobalt.tools)
+// API: Download Video  (cobalt.tools — trả redirect_url, FE tự fetch)
 // ============================================================
 app.post('/api/download', async (req, res) => {
   let { url, title } = req.body;
@@ -188,59 +188,43 @@ app.post('/api/download', async (req, res) => {
   url = normalizeUrl(url);
   console.log(`[DOWNLOAD] (cobalt) ${url}`);
 
-  let cobaltUrl = null;
-  let cobaltFilename = null;
   try {
     const { status, data } = await cobaltFetch(url);
     if (data?.status === 'error') {
       console.error('[DOWNLOAD] cobalt error:', JSON.stringify(data.error));
       return res.status(status >= 400 ? status : 502).json({ error: cobaltErrorMessage(data) });
     }
+
+    let redirectUrl = null;
+    let cobaltFilename = null;
+    let picker = null;
+
     if (data?.status === 'tunnel' || data?.status === 'redirect') {
-      cobaltUrl = data.url;
+      redirectUrl = data.url;
       cobaltFilename = data.filename || null;
     } else if (data?.status === 'picker' && Array.isArray(data.picker) && data.picker.length > 0) {
-      cobaltUrl = data.picker[0].url;
+      redirectUrl = data.picker[0].url;
       cobaltFilename = data.picker[0].filename || null;
+      picker = data.picker.map(p => ({ url: p.url, type: p.type, thumb: p.thumb || null }));
     } else {
       return res.status(502).json({ error: `Cobalt response không nhận diện được (status=${data?.status}).` });
     }
+
+    const baseName = sanitizeFilename(title || (cobaltFilename ? path.parse(cobaltFilename).name : 'video'));
+    const ext = cobaltFilename ? (path.extname(cobaltFilename).replace('.', '') || 'mp4') : 'mp4';
+    const filename = cobaltFilename || `${baseName}.${ext}`;
+
+    console.log(`[DOWNLOAD] OK (redirect): ${filename}`);
+    return res.json({
+      success: true,
+      redirect_url: redirectUrl,
+      filename,
+      picker,
+    });
   } catch (e) {
     console.error('[DOWNLOAD] cobalt request failed:', e.message);
     return res.status(502).json({ error: `Không gọi được Cobalt API: ${e.message}` });
   }
-
-  // Stream the file from cobalt's tunnel URL into DOWNLOADS_DIR
-  const fileId = crypto.randomBytes(4).toString('hex');
-  const baseName = sanitizeFilename(title || (cobaltFilename ? path.parse(cobaltFilename).name : 'video'));
-  const ext = cobaltFilename ? (path.extname(cobaltFilename).replace('.', '') || 'mp4') : 'mp4';
-  const filename = `${baseName}_${fileId}.${ext}`;
-  const outputPath = path.join(DOWNLOADS_DIR, filename);
-
-  try {
-    const dl = await axios.get(cobaltUrl, { responseType: 'stream', timeout: 180000 });
-    await new Promise((resolve, reject) => {
-      const writer = fs.createWriteStream(outputPath);
-      dl.data.pipe(writer);
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-      dl.data.on('error', reject);
-    });
-  } catch (e) {
-    console.error('[DOWNLOAD] stream failed:', e.message);
-    try { fs.unlinkSync(outputPath); } catch {}
-    return res.status(502).json({ error: `Tải file từ Cobalt tunnel thất bại: ${e.message}` });
-  }
-
-  const stat = fs.statSync(outputPath);
-  console.log(`[DOWNLOAD] OK: ${filename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
-
-  res.json({
-    success: true,
-    filename,
-    filesize: stat.size,
-    download_url: `/downloads/${encodeURIComponent(filename)}`,
-  });
 });
 
 // ============================================================
