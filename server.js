@@ -52,7 +52,7 @@ const FFPROBE = process.env.FFPROBE_PATH || path.join(__dirname, 'bin', 'ffprobe
 const FFMPEG_DIR = process.env.FFMPEG_DIR || path.dirname(FFMPEG);
 
 // Cobalt.tools API (used by F1 Download). URL + optional API key are env-overridable.
-const COBALT_API_URL = process.env.COBALT_API_URL || 'https://cobalt-api.fly.dev/';
+const COBALT_API_URL = process.env.COBALT_API_URL || 'https://dwnld.nichind.dev/';
 const COBALT_API_KEY = process.env.COBALT_API_KEY || '';
 
 async function cobaltFetch(videoUrl) {
@@ -72,6 +72,33 @@ function cobaltErrorMessage(data) {
   if (code.includes('fetch')) return `Cobalt không tải được video (${code}). Có thể link không hợp lệ hoặc bị chặn.`;
   if (code.includes('content')) return `Cobalt không tìm thấy nội dung (${code}).`;
   return `Cobalt lỗi: ${code}`;
+}
+
+// Resolve a public video URL → cobalt redirect → axios stream → outputPath.
+// Throws Error('cobalt: <msg>') on failure. Resolves to outputPath on success.
+async function cobaltDownload(videoUrl, outputPath) {
+  const { status, data } = await cobaltFetch(videoUrl);
+  if (data?.status === 'error') {
+    throw new Error(`cobalt: ${cobaltErrorMessage(data)}`);
+  }
+  let redirectUrl = null;
+  if (data?.status === 'tunnel' || data?.status === 'redirect') {
+    redirectUrl = data.url;
+  } else if (data?.status === 'picker' && Array.isArray(data.picker) && data.picker.length > 0) {
+    redirectUrl = data.picker[0].url;
+  } else {
+    throw new Error(`cobalt: response không nhận diện được (status=${data?.status}, http=${status})`);
+  }
+
+  const dl = await axios.get(redirectUrl, { responseType: 'stream', timeout: 180000 });
+  await new Promise((resolve, reject) => {
+    const writer = fs.createWriteStream(outputPath);
+    dl.data.pipe(writer);
+    writer.on('finish', resolve);
+    writer.on('error', reject);
+    dl.data.on('error', reject);
+  });
+  return outputPath;
 }
 
 // ============================================================
@@ -228,7 +255,7 @@ app.post('/api/download', async (req, res) => {
 });
 
 // ============================================================
-// API: Extract Audio (MP3) from Video
+// API: Extract Audio (MP3) from Video  (cobalt → ffmpeg)
 // ============================================================
 app.post('/api/audio', async (req, res) => {
   let { url, title } = req.body;
@@ -240,119 +267,105 @@ app.post('/api/audio', async (req, res) => {
   url = normalizeUrl(url);
   const fileId = crypto.randomBytes(4).toString('hex');
   const safeName = sanitizeFilename(title);
-  const outputTemplate = path.join(DOWNLOADS_DIR, `${safeName}_${fileId}.%(ext)s`);
-  console.log(`[AUDIO] ${url}`);
+  const tempVideoPath = path.join(UPLOADS_DIR, `audio_src_${fileId}.mp4`);
+  const outFilename = `${safeName}_${fileId}.mp3`;
+  const outputPath = path.join(DOWNLOADS_DIR, outFilename);
+  console.log(`[AUDIO] (cobalt) ${url}`);
 
-  const args = [
-    '-o', outputTemplate, '--no-warnings', '--no-check-certificates',
-    '--ffmpeg-location', FFMPEG_DIR,
-    '-f', 'bestaudio/best',
-    '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0',
-    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    url,
-  ];
+  try {
+    await cobaltDownload(url, tempVideoPath);
+  } catch (e) {
+    console.error('[AUDIO] cobalt fail:', e.message);
+    try { fs.unlinkSync(tempVideoPath); } catch {}
+    return res.status(502).json({ error: e.message });
+  }
 
-  execFile(YT_DLP, args, { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
-    if (error) {
-      console.error('Audio extract error:', stderr || error.message);
+  const ffArgs = ['-y', '-i', tempVideoPath, '-vn', '-c:a', 'libmp3lame', '-q:a', '2', outputPath];
+  execFile(FFMPEG, ffArgs, { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (err, _out, stderr) => {
+    fs.unlink(tempVideoPath, () => {});
+    if (err) {
+      console.error('[AUDIO] ffmpeg error:', stderr || err.message);
       return res.status(500).json({ error: 'Tách audio thất bại.' });
     }
-
-    const files = fs.readdirSync(DOWNLOADS_DIR).filter(f => f.includes(fileId) && /\.mp3$/i.test(f));
-    if (files.length === 0) return res.status(500).json({ error: 'Không tìm thấy file audio.' });
-
-    const filename = files[0];
-    const stat = fs.statSync(path.join(DOWNLOADS_DIR, filename));
-    console.log(`[AUDIO] OK: ${filename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
-
+    if (!fs.existsSync(outputPath)) {
+      return res.status(500).json({ error: 'Không tạo được file audio.' });
+    }
+    const stat = fs.statSync(outputPath);
+    console.log(`[AUDIO] OK: ${outFilename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
     res.json({
-      success: true, filename, filesize: stat.size,
-      download_url: `/downloads/${encodeURIComponent(filename)}`,
+      success: true,
+      filename: outFilename,
+      filesize: stat.size,
+      download_url: `/downloads/${encodeURIComponent(outFilename)}`,
     });
   });
 });
 
 // ============================================================
-// API: Extract Frames from Video
+// API: Extract Frames from Video  (cobalt → ffmpeg)
 // ============================================================
 app.post('/api/frames', async (req, res) => {
-  let { url, format_id, title, fps, max_frames } = req.body;
+  let { url, fps, max_frames } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const platform = detectPlatform(url);
   if (platform === 'unknown') return res.status(400).json({ error: 'Nền tảng không được hỗ trợ.' });
 
   url = normalizeUrl(url);
-  fps = fps || 1; // frames per second
+  fps = fps || 1;
   max_frames = max_frames || 20;
 
-  console.log(`[FRAMES] Extracting from ${url} (${fps} fps, max ${max_frames})`);
-
-  // Step 1: Download video first
   const fileId = crypto.randomBytes(4).toString('hex');
-  const safeName = sanitizeFilename(title);
-  const videoOutput = path.join(DOWNLOADS_DIR, `${safeName}_${fileId}.%(ext)s`);
+  const tempVideoPath = path.join(UPLOADS_DIR, `frames_src_${fileId}.mp4`);
+  const frameDir = path.join(FRAMES_DIR, fileId);
+  fs.mkdirSync(frameDir, { recursive: true });
 
-  const dlArgs = [
-    '-o', videoOutput, '--no-warnings', '--no-check-certificates',
-    '--ffmpeg-location', FFMPEG_DIR,
-    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-  ];
-  if (format_id && format_id !== 'audio') {
-    dlArgs.push('-f', format_id, '--merge-output-format', 'mp4');
-  } else {
-    dlArgs.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--merge-output-format', 'mp4');
+  console.log(`[FRAMES] (cobalt) ${url} (${fps} fps, max ${max_frames})`);
+
+  try {
+    await cobaltDownload(url, tempVideoPath);
+  } catch (e) {
+    console.error('[FRAMES] cobalt fail:', e.message);
+    try { fs.unlinkSync(tempVideoPath); } catch {}
+    return res.status(502).json({ error: e.message });
   }
-  dlArgs.push(url);
 
-  execFile(YT_DLP, dlArgs, { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (dlErr, dlOut, dlStderr) => {
-    if (dlErr) {
-      console.error('Frame download error:', dlStderr || dlErr.message);
-      return res.status(500).json({ error: 'Không thể tải video để trích xuất khung hình.' });
+  const frameOutput = path.join(frameDir, 'frame_%04d.jpg');
+  const ffmpegArgs = [
+    '-y', '-i', tempVideoPath,
+    '-vf', `fps=${fps}`,
+    '-frames:v', String(max_frames),
+    '-q:v', '2',
+    frameOutput,
+  ];
+
+  execFile(FFMPEG, ffmpegArgs, { timeout: 60000 }, (ffErr, _ffOut, ffStderr) => {
+    fs.unlink(tempVideoPath, () => {});
+    if (ffErr) {
+      console.error('[FRAMES] ffmpeg error:', ffStderr || ffErr.message);
+      return res.status(500).json({ error: 'Lỗi trích xuất khung hình.' });
     }
 
-    const videoFiles = fs.readdirSync(DOWNLOADS_DIR).filter(f => f.includes(fileId) && /\.(mp4|mkv|webm|avi)$/i.test(f));
-    if (videoFiles.length === 0) return res.status(500).json({ error: 'Không tìm thấy file video.' });
+    const frameFiles = fs.readdirSync(frameDir)
+      .filter(f => /\.jpg$/i.test(f))
+      .sort()
+      .map(f => ({
+        filename: f,
+        url: `/frames/${fileId}/${f}`,
+        size: fs.statSync(path.join(frameDir, f)).size,
+      }));
 
-    const videoPath = path.join(DOWNLOADS_DIR, videoFiles[0]);
-    const frameDir = path.join(FRAMES_DIR, fileId);
-    fs.mkdirSync(frameDir, { recursive: true });
+    if (frameFiles.length === 0) {
+      return res.status(500).json({ error: 'Không có khung hình nào được tạo.' });
+    }
 
-    // Step 2: Extract frames with ffmpeg
-    const frameOutput = path.join(frameDir, 'frame_%04d.jpg');
-    const ffmpegArgs = [
-      '-i', videoPath,
-      '-vf', `fps=${fps}`,
-      '-frames:v', String(max_frames),
-      '-q:v', '2',  // high quality JPEG
-      frameOutput,
-    ];
-
-    execFile(FFMPEG, ffmpegArgs, { timeout: 60000 }, (ffErr, ffOut, ffStderr) => {
-      if (ffErr) {
-        console.error('FFmpeg error:', ffStderr || ffErr.message);
-        return res.status(500).json({ error: 'Lỗi trích xuất khung hình.' });
-      }
-
-      // Collect frame paths
-      const frameFiles = fs.readdirSync(frameDir)
-        .filter(f => /\.jpg$/i.test(f))
-        .sort()
-        .map(f => ({
-          filename: f,
-          url: `/frames/${fileId}/${f}`,
-          size: fs.statSync(path.join(frameDir, f)).size,
-        }));
-
-      console.log(`[FRAMES] OK: ${frameFiles.length} frames extracted`);
-
-      res.json({
-        success: true,
-        frame_id: fileId,
-        frame_count: frameFiles.length,
-        frames: frameFiles,
-        video_file: videoFiles[0],
-      });
+    console.log(`[FRAMES] OK: ${frameFiles.length} frames (session ${fileId})`);
+    res.json({
+      success: true,
+      frame_id: fileId,
+      frame_count: frameFiles.length,
+      frames: frameFiles,
+      zip_url: `/api/frames-zip/${fileId}`,
     });
   });
 });
